@@ -1,50 +1,102 @@
 package com.company;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
-import java.io.*;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 public class DictionaryPasswordCracker {
     public static void main(String[] args) throws NoSuchAlgorithmException, NoSuchProviderException, IOException {
-        Path path = Paths.get("PasswordCracking/dic-0294.txt");
-        Path pw = Paths.get("PasswordCracking/pw2.hex");
-        FileWriter fw = new FileWriter(new File("results.txt"));
-        Optional<String> password1 = Files.lines(pw).findFirst();
+        Path dictionary = Paths.get("PasswordCracking/dic-0294.txt");
 
-        Map<String, String> map = new HashMap<>();
-        for (String s : Files.readAllLines(path)) {
-            map.put(s, getSecurePassword(s));
-            if(map.containsValue(password1)){
-                System.out.println(map.get(password1));
+        Path salt = Paths.get("PasswordCracking/salt.hex");
+        FileWriter fileWriter = new FileWriter(new File("results.txt"));
+        String givenSalt = Files.lines(salt).findFirst().get();
+
+for(int x =0; x<=6; x++){
+            for (int i = 1; i <= 3; i++) {
+                Path passwordToCheck = Paths.get("PasswordCracking/pw" + i + ".hex");
+                String pwToValidate = Files.lines(passwordToCheck).findFirst().get();
+                testHash(dictionary, fileWriter, pwToValidate);
+
+            }
+            for (int i = 1; i <= 3; i++) {
+                Path passwordToCheck = Paths.get("PasswordCracking/spw" + i + ".hex");
+                String pwToValidate = Files.lines(passwordToCheck).findFirst().get();
+                testSaltHash(dictionary, fileWriter, givenSalt, pwToValidate);
             }
         }
-        fw.write(String.valueOf(map));
 
+
+    }
+
+    private static void testSaltHash(Path dictionary, FileWriter fw, String salt1, String hashToCompare) throws IOException {
+        Map<String, String> map = new HashMap<>();
+        for (String text : Files.readAllLines(dictionary)) {
+            map.put(getSecurePassword(salt1, text), text);
+
+        }
+        if (map.containsKey(hashToCompare)) {
+            System.out.println("FOUND :: " + map.get(hashToCompare));
+        }
+        writeMapToFile(map, fw);
+        fw.flush();
+        fw.close();
+    }
+
+    private static void testHash(Path dictionary, FileWriter fw, String hashToCompare) throws IOException {
+        Map<String, String> map = new HashMap<>();
+        for (String text : Files.readAllLines(dictionary)) {
+            map.put(getSecurePassword(null, text), text);
+
+        }
+        if (map.containsKey(hashToCompare)) {
+            System.out.println("FOUND :: " + map.get(hashToCompare));
+        }
+        writeMapToFile(map, fw);
+
+    }
+
+    private static void writeMapToFile(Map<String, String> map, FileWriter fw) throws IOException {
+        fw.write(map + "\n");
         fw.flush();
         fw.close();
 
     }
 
-    private static String getSecurePassword(String passwordToHash) {
-        String generatedPassword = null;
+    //borrowed from online resources
+    public static byte[] hexStringToByteArray(String text) {
+        byte[] textBytes = new byte[text.length() / 2];
+        IntStream.range(0, textBytes.length).forEach(i -> textBytes[i] = (byte) Integer.parseInt(text.substring(2 * i, 2 * i + 2), 16));
+        return textBytes;
+
+    }
+
+    private static String getSecurePassword(String salt, String passwordToHash) {
+        String password = null;
         try {
-            // Create MessageDigest instance for MD5
             MessageDigest md = MessageDigest.getInstance("SHA");
-            //Get the hash's bytes
+            if (salt != null) {
+                md.update(hexStringToByteArray(salt));
+            }
             byte[] bytes = md.digest(passwordToHash.getBytes());
-            String sb = IntStream.range(0, bytes.length).mapToObj(i -> Integer.toString((bytes[i] & 0xff) + 0x100, 16).substring(1)).collect(Collectors.joining());
-            generatedPassword = sb;
+            StringBuilder sb = new StringBuilder();
+            for (byte aByte : bytes) {
+                sb.append(Integer.toString((aByte & 0xff) + 0x100, 16).substring(1));
+            }
+            password = sb.toString();
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         }
-        return generatedPassword;
+        return password;
     }
 
 }
